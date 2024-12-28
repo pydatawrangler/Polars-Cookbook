@@ -1,0 +1,411 @@
+---
+title: 'Chapter 1: Getting Started with Python Polars'
+jupyter: python3
+---
+
+
+
+## The Polars DataFrame
+
+```{python}
+import polars as pl
+```
+
+### How to do it...
+
+```{python}
+df = pl.DataFrame({
+    'nums': [1,2,3,4,5],
+    'letters': ['a','b','c','d','e']
+})
+df.head()
+```
+
+```{python}
+df = pl.read_csv('data/titanic_dataset.csv')
+df.head()
+```
+
+```{python}
+df.schema
+```
+
+```{python}
+df.columns
+```
+
+```{python}
+df.dtypes
+```
+
+```{python}
+df.shape
+```
+
+```{python}
+df.height
+```
+
+```{python}
+df.width
+```
+
+```{python}
+df.flags
+```
+
+### There is more...
+
+```{python}
+import numpy as np
+
+numpy_arr = np.array([[1,1,1], [2,2,2]])
+df = pl.from_numpy(numpy_arr, schema={'ones': pl.Float32, 'twos': pl.Int8}, orient='col') 
+df.head()
+```
+
+## The Polars Series
+
+### How to do it...
+
+```{python}
+s = pl.Series('col', [1,2,3,4,5])
+s.head()
+```
+
+```{python}
+data = {'a': [1,2,3], 'b': [4,5,6]}
+s_a = (
+    pl.DataFrame(data)
+    .to_series()
+)
+s_a.head()
+```
+
+```{python}
+s_b = (
+    pl.DataFrame(data)
+    .to_series(1)
+)
+s_b.head()
+```
+
+```{python}
+s_b2 = (
+    pl.DataFrame(data)
+    .get_column('b')
+)
+s_b2.head()
+```
+
+```{python}
+s.shape
+```
+
+```{python}
+s.name
+```
+
+```{python}
+s.dtype
+```
+
+## The Polars LazyFrame
+
+### How to do it...
+
+```{python}
+data = {'name': ['Sarah',  'Mike', 'Bob', 'Ashley']}
+lf = pl.LazyFrame(data) 
+type(lf)
+```
+
+```{python}
+lf.collect().head()
+```
+
+```{python}
+lf = pl.scan_csv('../data/titanic_dataset.csv')
+lf.head().collect()
+```
+
+```{python}
+df = pl.read_csv('../data/titanic_dataset.csv')
+df.lazy().head(3).collect()
+```
+
+```{python}
+lf.collect_schema()
+```
+
+```{python}
+lf.collect_schema().len()
+```
+
+```{python}
+(
+    lf
+    .select(pl.col('Name', 'Age'))
+    .show_graph()
+)
+```
+
+```{python}
+(
+    lf
+    .select(pl.col('Name', 'Age'))
+    .show_graph(optimized=False)
+)
+```
+
+```{python}
+(
+    lf
+    .select(pl.col('Name', 'Age'))
+    .explain()
+)
+```
+
+```{python}
+print(
+    lf
+    .select(pl.col('Name', 'Age'))
+    .explain()
+    , sep='\n'
+)
+```
+
+## Selecting columns and filtering data
+
+### How to do it...
+
+```{python}
+df = pl.read_csv('../data/titanic_dataset.csv') 
+df.head()
+```
+
+```{python}
+df.select(['Survived', 'Ticket', 'Fare']).head()
+```
+
+```{python}
+df.select(pl.col(['Survived', 'Ticket', 'Fare'])).head()
+```
+
+```{python}
+df.select(
+    pl.col('Survived'),
+    pl.col('Ticket'),
+    pl.col('Fare')
+).head()
+```
+
+```{python}
+df.with_columns(
+    pl.col('Survived'),
+    pl.col('Ticket'),
+    pl.col('Fare')
+).head()
+```
+
+```{python}
+df.with_columns(['Survived', 'Ticket', 'Fare']).head()
+```
+
+```{python}
+df.with_columns(
+    pl.col('Survived'),
+    pl.col('Ticket'),
+    pl.col('Fare')
+).head()
+```
+
+```{python}
+df.filter((pl.col('Age') >= 30)).head()
+```
+
+```{python}
+df.filter(
+    (pl.col('Age') >= 30) & (pl.col('Sex')=='male')
+).head()
+```
+
+### There is more...
+
+```{python}
+df[['Age', 'Sex']].head()
+```
+
+```{python}
+df.select(pl.col('^[a-zA-Z]{0,4}$')).head()
+```
+
+```{python}
+df.select(pl.col(pl.String)).head()
+```
+
+```{python}
+import polars.selectors as cs
+
+df.select(cs.numeric()).head()
+```
+
+```{python}
+df.select(cs.matches('se|ed')).head()
+```
+
+## Creating, modifying, and deleting columns 
+
+### How to do it...
+
+```{python}
+df = pl.read_csv('../data/titanic_dataset.csv')
+df.head()
+```
+
+```{python}
+df.with_columns(
+    pl.col('Fare').max().alias('Max Fare')
+).head()
+```
+
+```{python}
+df.with_columns(
+    max_fare=pl.col('Fare').max()
+).head()
+```
+
+```{python}
+df.with_columns(
+    (pl.col('Fare').max() - pl.col('Fare').mean()).alias('Max Fare - Avg Fare')
+).head()
+```
+
+```{python}
+df.with_columns(pl.lit('Titanic')).head()
+```
+
+```{python}
+df.with_row_index().head()
+```
+
+```{python}
+df.with_columns(pl.col('Sex').str.to_titlecase()).head()
+```
+
+```{python}
+df.with_columns( 
+    pl.col('Fare').max() 
+).head() 
+```
+
+```{python}
+df.drop(['Pclass', 'Name', 'SibSp', 'Parch', 'Ticket', 'Cabin', 'Embarked']).head()
+```
+
+```{python}
+df.select(['PassengerId', 'Survived', 'Sex', 'Age', 'Fare']).head()
+```
+
+### There is more...
+
+```{python}
+best_practice = (
+    df.with_columns(
+        pl.col('Fare').max().alias('Max Fare'),
+        pl.lit('Titanic'),
+        pl.col('Sex').str.to_titlecase()
+    )
+)
+best_practice.head()
+```
+
+```{python}
+not_so_good_practice = (
+    df
+    .with_columns(pl.col('Fare').max().alias('Max Fare'))
+    .with_columns(pl.lit('Titanic'))
+    .with_columns(pl.col('Sex').str.to_titlecase())
+)
+not_so_good_practice.head()
+```
+
+## Method chaining
+
+### How to do it...
+
+```{python}
+df = pl.read_csv('../data/titanic_dataset.csv')
+df.head()
+```
+
+```{python}
+cols = ['Name', 'Sex', 'Age', 'Fare', 'Cabin', 'Pclass', 'Survived']
+```
+
+```{python}
+df = df.select(cols)
+df = df.filter(pl.col('Age')>=35)
+df = df.sort(by=['Age', 'Name'])
+df.head()
+```
+
+```{python}
+df = df.select(cols).filter(pl.col('Age')>=35).sort(by=['Age', 'Name'])
+df.head()
+```
+
+```{python}
+df = (
+    df
+    .select(cols)
+    .filter(pl.col('Age')>=35)
+    .sort(by=['Age', 'Name'])
+)
+df.head()
+```
+
+```{python}
+df = (
+    df
+    .select(cols)
+    # .filter(pl.col('Age')>=35)
+    .sort(by=['Age', 'Name'])
+)
+df.head()
+```
+
+### There is more...
+
+```{python}
+df = df \
+    .select(cols) \
+    .filter(pl.col('Age')>=35) \
+    .sort(by=['Age', 'Name']) 
+```
+
+## Processing datasets larger than RAM
+
+```{python}
+import polars as pl 
+```
+
+```{python}
+taxi_trips = (
+    pl.scan_csv('~/Downloads/Taxi_Trips.csv')
+    .collect(streaming=True)
+)
+taxi_trips.head()
+```
+
+```{python}
+trip_total_by_pay_type = (
+    pl.scan_csv('~/Downloads/Taxi_Trips.csv')
+    .group_by('Payment Type')
+    .agg(pl.col('Trip Total').sum())
+    .collect()
+)
+trip_total_by_pay_type.head()
+```
+
+
