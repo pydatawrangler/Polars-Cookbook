@@ -1,0 +1,500 @@
+---
+title: 'Chapter 3: Introduction to Data Analysis in Python Polars'
+jupyter: python3
+---
+
+
+
+## Inspecting a DataFrame
+
+### How to do it...
+
+```{python}
+import polars as pl
+```
+
+```{python}
+df = pl.read_csv('../data/covid_19_deaths.csv')
+```
+
+```{python}
+df.head(5)
+```
+
+```{python}
+df.tail(5)
+```
+
+```{python}
+df.glimpse(max_items_per_column=3)
+```
+
+```{python}
+df.estimated_size('mb')
+```
+
+```{python}
+import polars.selectors as cs
+df.select(cs.numeric()).describe()
+```
+
+```{python}
+df.null_count()
+```
+
+### There is more...
+
+```{python}
+print(df.head())
+```
+
+```{python}
+with pl.Config() as config:
+    config.set_tbl_cols(11)
+    print(df.head(2))
+```
+
+```{python}
+pl.Config.set_tbl_cols(11)
+print(df.head(2))
+```
+
+## Casting data types
+
+### How to do it...
+
+```{python}
+import polars as pl
+```
+
+```{python}
+df = pl.read_csv('../data/covid_19_deaths.csv')
+df.head()
+```
+
+```{python}
+df.with_columns(
+        pl.col('Data As Of').str.strptime(pl.Date, '%m/%d/%Y'),
+        pl.col('Start Date').str.strptime(pl.Date, '%m/%d/%Y'),
+        pl.col('End Date').str.strptime(pl.Date, '%m/%d/%Y'),
+        pl.col('End Date').str.to_date('%m/%d/%Y').alias('End Date 2'),
+        pl.col('Year').cast(pl.Int64)
+).head()
+```
+
+```{python}
+updated_df = (
+    df.with_columns(
+        pl.col('Data As Of').str.strptime(pl.Date, '%m/%d/%Y'),
+        pl.col('Start Date').str.strptime(pl.Date, '%m/%d/%Y'),
+        pl.col('End Date').str.strptime(pl.Date, '%m/%d/%Y'),
+        pl.col('End Date').str.to_date('%m/%d/%Y').alias('End Date 2'),
+        pl.col('Year').cast(pl.Int64)
+    )
+)
+```
+
+```{python}
+lf = pl.scan_csv('../data/covid_19_deaths.csv')
+lf.with_columns(
+        pl.col('Data As Of').str.strptime(pl.Date, '%m/%d/%Y'),
+        pl.col('Start Date').str.strptime(pl.Date, '%m/%d/%Y'),
+        pl.col('End Date').str.strptime(pl.Date, '%m/%d/%Y'),
+        pl.col('End Date').str.to_date('%m/%d/%Y').alias('End Date 2'),
+        pl.col('Year').cast(pl.Int64)
+).collect().head()
+```
+
+## Finding and removing duplicates values 
+
+### How to do it
+
+```{python}
+import polars as pl
+```
+
+```{python}
+df = pl.read_csv('../data/covid_19_deaths.csv')
+df.head()
+```
+
+```{python}
+df.shape
+```
+
+```{python}
+df.is_duplicated().sum()
+```
+
+```{python}
+df.is_unique().sum()
+```
+
+```{python}
+df.n_unique()
+```
+
+```{python}
+df.select(pl.all().n_unique())
+```
+
+```{python}
+df.n_unique(subset=['Start Date', 'End Date'])
+```
+
+```{python}
+(
+    df.unique(subset=['Start Date', 'End Date'], keep='first')
+    .head()
+)
+```
+
+```{python}
+rows_to_keep = df.select(['Year', 'COVID-19 Deaths']).is_unique()
+rows_to_keep.sum()
+```
+
+```{python}
+df.filter(rows_to_keep).shape
+```
+
+```{python}
+df.filter(rows_to_keep).head()
+```
+
+### There is more...
+
+```{python}
+df.select(pl.all().approx_n_unique())
+```
+
+## Masking sensitive data
+
+### How to do it...
+
+```{python}
+import polars as pl
+```
+
+```{python}
+df = pl.read_csv('../data/covid_19_deaths.csv')
+df.head()
+```
+
+```{python}
+import random
+
+def get_random_nums(num_list, length):
+    random_nums = ''.join(str(n) for n in random.sample(num_list, length))
+    return random_nums
+```
+
+```{python}
+fake_ssns = []
+nums = [n for n in range(10)]
+
+for i in range(df.height):
+    part_1 = get_random_nums(nums, 3)
+    part_2 = get_random_nums(nums, 2)
+    part_3 = get_random_nums(nums, 4)
+    fake_ssn = f'{part_1}-{part_2}-{part_3}'
+    fake_ssns.append(fake_ssn)
+
+random.seed(10)
+fake_ssns_df = pl.DataFrame({'SSN': fake_ssns})
+fake_ssns_df.head()
+```
+
+```{python}
+df = pl.concat([df, fake_ssns_df], how='horizontal')
+```
+
+```{python}
+df.select(
+    ('XXX-XX-XX' + pl.col('SSN').str.slice(9, 2)).alias('SSN Masked')
+).head()
+```
+
+```{python}
+df.select(
+    ('XXX-XX-XX' + pl.col('SSN').str.slice(9, 2)).alias('SSN Masked'),
+    
+).head()
+```
+
+```{python}
+df.select(
+    pl.col('SSN').hash()
+).head()
+```
+
+## Visualizing data using Plotly
+
+### How to do it...
+
+```{python}
+import polars as pl
+import plotly.express as px
+```
+
+```{python}
+age_groups = ['0-17 years', '18-29 years', '30-39 years', '40-49 years', '50-64 years', '65-74 years', '75-84 years', '85 years and over', 'All Ages']
+
+df = (
+    pl.read_csv('../data/covid_19_deaths.csv')
+    .filter(
+        pl.col('Month').is_not_null(),
+        pl.col('Age Group').is_in(age_groups),
+    )
+)
+df.head()
+```
+
+```{python}
+df = (
+    df.
+    with_columns(
+        pl.col('Data As Of').str.strptime(pl.Date, '%m/%d/%Y'),
+        pl.col('Start Date').str.strptime(pl.Date, '%m/%d/%Y'),
+        pl.col('End Date').str.strptime(pl.Date, '%m/%d/%Y'),
+        pl.col('Year').cast(pl.Int64),
+        pl.col('Month').cast(pl.Int64)
+    )
+) 
+df.head()
+```
+
+```{python}
+covid_deaths_by_age = (
+    df
+    .filter(
+        pl.col('State')=='United States',
+        pl.col('Year') == 2023,
+        pl.col('Age Group') != 'All Ages',
+        pl.col('Sex') == 'All Sexes'
+    )
+    .group_by('Age Group')
+    .agg(pl.col('COVID-19 Deaths').sum())
+    .sort(by='COVID-19 Deaths', descending=True)
+)
+
+fig = px.bar(
+    covid_deaths_by_age, 
+    x='Age Group', 
+    y='COVID-19 Deaths', 
+    title='COVID Deaths 2023 by Age Group - As of 9/27/23'
+)
+
+fig.update_layout(xaxis_title=None)
+fig.show()
+```
+
+```{python}
+covid_deaths_by_top_5_states = (
+    df
+    .filter(
+        pl.col('State') != 'United States',
+        pl.col('Year') == 2023,
+        pl.col('Age Group') == 'All Ages',
+        pl.col('Sex') == 'All Sexes'
+    )
+    .group_by('State')
+    .agg(pl.col('COVID-19 Deaths').sum())
+    .sort(by='COVID-19 Deaths', descending=True)
+    .head()
+)
+
+fig = px.bar(
+    covid_deaths_by_top_5_states, 
+    x='State', 
+    y='COVID-19 Deaths', 
+    title='COVID Deaths 2023 by Top 5 States - As of 9/27/23',
+)
+
+fig.update_layout(xaxis_title=None)
+fig.show()
+```
+
+```{python}
+covid_deaths_by_sex = (
+    df
+    .filter(
+        pl.col('State') == 'United States',
+        pl.col('Year') == 2023,
+        pl.col('Age Group') == 'All Ages',
+        pl.col('Sex') != 'All Sexes'
+    )
+    .group_by('Sex')
+    .agg(pl.col('COVID-19 Deaths').sum())
+    .sort(by='COVID-19 Deaths', descending=True)
+    .head()
+)
+
+fig = px.bar(
+    covid_deaths_by_sex, 
+    x='Sex', 
+    y='COVID-19 Deaths', 
+    title='COVID Deaths 2023 by Sex - As of 9/27/23',
+    text_auto='.2s'
+)
+
+fig.update_layout(xaxis_title=None)
+fig.update_traces(width = 0.3, textfont_size=12, textangle=0, textposition='inside')
+fig.show()
+```
+
+```{python}
+from us_state_mappings import us_state_division_dict
+
+covid_deaths_vs_flu_deaths = (
+    df
+    .with_columns(
+        pl.col('State').replace_strict(us_state_division_dict, default='Others').alias('Division')
+    )
+    .filter(
+        pl.col('State') != 'United States',
+        pl.col('Age Group') != 'All Ages',
+        pl.col('Sex') != 'All Sexes',
+        pl.col('Year') == 2023
+    )
+    .group_by('State', 'Division')
+    .agg(
+        pl.col('COVID-19 Deaths').sum(),
+        pl.col('Influenza Deaths').sum(),
+        pl.col('Pneumonia Deaths').sum()
+    )
+)
+
+fig = px.scatter(
+    covid_deaths_vs_flu_deaths, 
+    x='COVID-19 Deaths', 
+    y='Influenza Deaths', 
+    color='Division',
+    size='Pneumonia Deaths',
+    hover_name='State',
+    title='COVID-19, Influenza, and Pneumonia Deaths 2023 by US States and Divisions'
+)
+
+fig.show()
+```
+
+```{python}
+monthly_treand_by_year = (
+    df
+    .filter(
+        pl.col('State') == 'United States',
+        pl.col('Age Group') == 'All Ages',
+        pl.col('Sex') == 'All Sexes'
+    )
+    .group_by('Year', 'Month')
+    .agg(
+        pl.col('COVID-19 Deaths').sum(),
+    )
+    .sort(by='Month')
+)
+
+fig = px.line(
+    monthly_treand_by_year, 
+    x='Month', 
+    y='COVID-19 Deaths', 
+    color='Year',
+    title='COVID-19 Deaths Monthly Trend - United States',
+    line_shape='spline'
+)
+
+fig.update_xaxes(dtick = 1)
+fig.update_layout(legend_traceorder='reversed')
+fig.show()
+```
+
+## Detecting and handling outliers  
+
+### How to do it...
+
+```{python}
+import polars as pl
+import plotly 
+df = pl.from_pandas(plotly.data.iris())
+df.head()
+```
+
+```{python}
+import plotly.express as px
+
+fig = px.box(df, y='sepal_width', width=500)
+fig.show()
+```
+
+```{python}
+q1 = pl.col('sepal_width').quantile(0.25)
+q3 = pl.col('sepal_width').quantile(0.75)
+iqr = q3 - q1
+threshold = 1.5
+lower_limit = q1 - iqr * threshold
+upper_limit = q3 + iqr * threshold
+
+df.filter(
+    (pl.col('sepal_width') < lower_limit) | (pl.col('sepal_width') > upper_limit)
+).head()
+```
+
+```{python}
+is_outlier_iqr = (pl.col('sepal_width') < lower_limit) | (pl.col('sepal_width') > upper_limit)
+df_iqr_outlier_removed = (
+    df
+    .filter(is_outlier_iqr.not_())
+)
+df_iqr_outlier_removed.filter(is_outlier_iqr)
+```
+
+```{python}
+df_iqr_outlier_replaced = (
+    df
+    .with_columns(
+        pl.when(is_outlier_iqr)
+        .then(pl.col('sepal_width').median())
+        .otherwise(pl.col('sepal_width'))
+        .alias('sepal_width')
+    )
+)
+df_iqr_outlier_replaced.filter(is_outlier_iqr)
+```
+
+```{python}
+df_zscore = (
+    df.with_columns(
+       sepal_width_zscore=(pl.col('sepal_width') - pl.col('sepal_width').mean()) / pl.col('sepal_width').std()
+    )
+)
+df_zscore.head()
+```
+
+```{python}
+is_outlier_z_score = (pl.col('sepal_width_zscore') > 3) | (pl.col('sepal_width_zscore') < -3)
+df_zscore_outliers_removed = df_zscore.filter(is_outlier_z_score.not_())
+```
+
+```{python}
+df_zscore.filter(is_outlier_z_score)
+```
+
+```{python}
+df_zscore_outliers_removed.filter(is_outlier_z_score)
+```
+
+```{python}
+df_zscore_outliers_replaced = (
+    df_zscore
+    .with_columns(
+        pl.when(is_outlier_z_score)
+        .then(pl.col('sepal_width').mean())
+        .otherwise(pl.col('sepal_width'))
+        .alias('sepal_width')
+    )
+)
+```
+
+```{python}
+df_zscore_outliers_replaced.filter(is_outlier_z_score)
+```
+
